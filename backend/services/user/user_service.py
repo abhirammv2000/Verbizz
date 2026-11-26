@@ -7,18 +7,15 @@ from codegen import recommendation_service_pb2 as rec_pb2
 import grpc
 import json
 import logging
-from kafka import KafkaConsumer
 
-# Initialize Kafka consumer
-consumer = KafkaConsumer(
-    'preferences_update',
-    bootstrap_servers='localhost:9092',  # Update with your Kafka broker address
-    value_deserializer=lambda v: json.loads(v.decode('utf-8')),
-    group_id='recommendation-service'
-)
+# The Kafka consumer for preference updates is started from server.py
+# (consumers/update_preferences_consumer.py). It used to be created here at
+# import time, which made the whole server crash when Kafka was not reachable.
 
-
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "fallback-secret-key")
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    logging.warning("JWT_SECRET_KEY is not set. Using an insecure development key.")
+    SECRET_KEY = "insecure-development-key"
 
 class UserService(user_pb2_grpc.UserServiceServicer):
     def __init__(self, db, redis_client, recommendation_service):

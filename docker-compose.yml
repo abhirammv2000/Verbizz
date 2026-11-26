@@ -1,0 +1,100 @@
+# Runs the whole stack locally: docker compose up --build
+# Then open http://localhost:5000
+# Copy .env.example to .env first and set the passwords.
+name: verbizz
+
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env and set POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Init scripts run once, in file name order, when the data volume is empty.
+      - ./backend/db/00_extensions.sql:/docker-entrypoint-initdb.d/00_extensions.sql:ro
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/10_business.sql:ro
+      - ./backend/db/users.sql:/docker-entrypoint-initdb.d/20_users.sql:ro
+      - ./backend/db/after_load.sql:/docker-entrypoint-initdb.d/30_after_load.sql:ro
+      # init.sql loads businesses from /tmp/final_cleaned_data.csv
+      - ./data/final_cleaned_data.csv:/tmp/final_cleaned_data.csv:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:3.8.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      DB_NAME: postgres
+      DB_USER: postgres
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env and set POSTGRES_PASSWORD}
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?copy .env.example to .env and set JWT_SECRET_KEY}
+    volumes:
+      # server.py loads data/full_data.pkl and data/tfidf_vectorizer.pkl from here.
+      - ./data:/app/data:ro
+    ports:
+      - "50051:50051"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=:50051"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_HOST: backend:50051
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:?copy .env.example to .env and set FLASK_SECRET_KEY}
+    ports:
+      - "5000:5000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
