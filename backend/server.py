@@ -25,7 +25,7 @@ REDIS_PORT = int(os.getenv('REDIS_PORT', 6379))
 KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka-service:9092')
 DB_NAME = os.getenv('DB_NAME', 'postgres')
 DB_USER = os.getenv('DB_USER', 'postgres')
-DB_PASSWORD = os.getenv('DB_PASSWORD', 'rootpass123')
+DB_PASSWORD = os.getenv('DB_PASSWORD')  # required, no default: set it in the environment or .env
 DB_HOST = os.getenv('DB_HOST', 'localhost') #postgres-service for docker
 DB_PORT = int(os.getenv('DB_PORT', 5432))
 
@@ -63,6 +63,8 @@ def initialize_resources():
 
     # Initialize Database
     logging.info("Initializing Database...")
+    if not DB_PASSWORD:
+        print("DB_PASSWORD is not set. Set it in the environment or in backend/.env (see .env.example).")
     try:
         db = Database(db_name=DB_NAME, user=DB_USER, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT)
         print(f"Connected to Database at {DB_HOST}:{DB_PORT}")

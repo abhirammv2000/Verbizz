@@ -5,8 +5,9 @@ from codegen import user_service_pb2_grpc as user_pb2_grpc
 from codegen import recommendation_service_pb2 as rec_pb2
 from codegen import recommendation_service_pb2_grpc as rec_pb2_grpc
 import logging
+import os
 
-BACKEND_HOST = "localhost:50051"
+BACKEND_HOST = os.getenv("BACKEND_HOST", "localhost:50051")
 
 class BackendClient:
     def __init__(self):

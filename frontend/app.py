@@ -1,4 +1,5 @@
 import logging
+import os
 
 from flask import Flask, render_template, request, redirect, session, flash
 from backend_client import BackendClient
@@ -8,7 +9,7 @@ from kafka import KafkaProducer
 
 # Initialize Kafka producer
 producer = KafkaProducer(
-    bootstrap_servers='localhost:9092',  # Update with your Kafka broker address
+    bootstrap_servers=os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092'),
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
 
@@ -22,7 +23,9 @@ logging.basicConfig(
     ]
 )
 app = Flask(__name__)
-app.secret_key = "supersecretkey"
+app.secret_key = os.getenv("FLASK_SECRET_KEY") or "insecure-development-key"
+if app.secret_key == "insecure-development-key":
+    logging.warning("FLASK_SECRET_KEY is not set. Using an insecure development key.")
 
 # Initialize backend client
 client = BackendClient()

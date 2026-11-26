@@ -1,6 +1,6 @@
 # Load environment variables from .env file
-include .env
-export $(shell sed 's/=.*//' .env)
+-include .env
+export
 
 # Define variables
 DOCKER_USERNAME := $(DOCKER_USERNAME)
