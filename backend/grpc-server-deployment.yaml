@@ -31,7 +31,15 @@ spec:
         - name: DB_USER
           value: "postgres"       # Database user
         - name: DB_PASSWORD
-          value: "rootpass123"    # Database password
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: app-secrets
+              key: JWT_SECRET_KEY
         - name: DB_HOST
           value: "postgres-service"  # PostgreSQL service name in Kubernetes
         - name: DB_PORT
